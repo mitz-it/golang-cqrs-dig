@@ -1,8 +1,6 @@
-name: Test CQRS Dig
+name: Code Coverage
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   push:
     branches:
       - main
@@ -25,9 +23,9 @@ jobs:
         shell: bash
         run: go mod tidy
 
-      - name: Build Package
+      - name: Create Bin
         shell: bash
-        run: go build
+        run: mkdir -p bin
 
       - name: Collect Code Coverage
         shell: bash
