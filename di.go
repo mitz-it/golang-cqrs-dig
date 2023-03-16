@@ -61,7 +61,7 @@ func ProvideQueryBehavior[TBehavior cqrs.IBehavior](container *dig.Container, or
 	return err
 }
 
-func ProvideEventHandler[TEvent any](container *dig.Container, constructor interface{}) error {
+func ProvideEventSubscriber[TEvent any](container *dig.Container, constructor interface{}) error {
 	err := container.Provide(constructor)
 
 	if err != nil {

@@ -12,15 +12,15 @@ import (
 	"go.uber.org/dig"
 )
 
-type PongService struct {
+type PingPongService struct {
 }
 
-func NewPingService() *PongService {
-	return &PongService{}
-}
-
-func (s *PongService) SetPong(ping string, pong string) string {
+func (s *PingPongService) Play(ping string, pong string) string {
 	return fmt.Sprintf("%s %s", ping, pong)
+}
+
+func NewPingPongService() *PingPongService {
+	return &PingPongService{}
 }
 
 type PingResponse struct {
@@ -39,12 +39,12 @@ type PingEvent struct {
 	Ping string
 }
 
-type CommandHandler struct {
-	service *PongService
+type PingCommandHandler struct {
+	service *PingPongService
 }
 
-func (h *CommandHandler) Handle(ctx context.Context, command *PingCommand) (*PingResponse, error) {
-	pong := h.service.SetPong(command.Ping, "pong")
+func (h *PingCommandHandler) Handle(ctx context.Context, command *PingCommand) (*PingResponse, error) {
+	pong := h.service.Play(command.Ping, "pong")
 
 	response := &PingResponse{
 		Pong: pong,
@@ -53,18 +53,18 @@ func (h *CommandHandler) Handle(ctx context.Context, command *PingCommand) (*Pin
 	return response, nil
 }
 
-func NewCommandHandler(service *PongService) cqrs.ICommandHandler[*PingCommand, *PingResponse] {
-	return &CommandHandler{
+func NewPingCommandHandler(service *PingPongService) cqrs.ICommandHandler[*PingCommand, *PingResponse] {
+	return &PingCommandHandler{
 		service: service,
 	}
 }
 
-type QueryHandler struct {
-	service *PongService
+type PingQueryHandler struct {
+	service *PingPongService
 }
 
-func (h *QueryHandler) Handle(ctx context.Context, query *PingQuery) (*PingResponse, error) {
-	pong := h.service.SetPong(query.Ping, "pong")
+func (h *PingQueryHandler) Handle(ctx context.Context, query *PingQuery) (*PingResponse, error) {
+	pong := h.service.Play(query.Ping, "pong")
 
 	response := &PingResponse{
 		Pong: pong,
@@ -73,14 +73,14 @@ func (h *QueryHandler) Handle(ctx context.Context, query *PingQuery) (*PingRespo
 	return response, nil
 }
 
-func NewQueryHandler(service *PongService) cqrs.IQueryHandler[*PingQuery, *PingResponse] {
-	return &QueryHandler{
+func NewPingQueryHandler(service *PingPongService) cqrs.IQueryHandler[*PingQuery, *PingResponse] {
+	return &PingQueryHandler{
 		service: service,
 	}
 }
 
 type PingBehavior struct {
-	service *PongService
+	service *PingPongService
 }
 
 func (b *PingBehavior) Handle(ctx context.Context, request interface{}, next cqrs.NextFunc) (interface{}, error) {
@@ -92,27 +92,27 @@ func (b *PingBehavior) Handle(ctx context.Context, request interface{}, next cqr
 
 	response := res.(*PingResponse)
 
-	response.Pong = b.service.SetPong(response.Pong, "behavior also says pong")
+	response.Pong = b.service.Play(response.Pong, "behavior also says pong")
 
 	return response, nil
 }
 
-func NewPingBehavior(service *PongService) *PingBehavior {
+func NewPingBehavior(service *PingPongService) *PingBehavior {
 	return &PingBehavior{
 		service: service,
 	}
 }
 
 type PingEventHandler struct {
-	service *PongService
+	service *PingPongService
 }
 
 func (h *PingEventHandler) Handle(ctx context.Context, event *PingEvent) error {
-	event.Ping = h.service.SetPong(event.Ping, "and event says pong!")
+	event.Ping = h.service.Play(event.Ping, "and event says pong!")
 	return nil
 }
 
-func NewPingEventHandler(service *PongService) cqrs.IEvenHandler[*PingEvent] {
+func NewPingEventHandler(service *PingPongService) cqrs.IEvenHandler[*PingEvent] {
 	return &PingEventHandler{
 		service: service,
 	}
@@ -121,14 +121,14 @@ func NewPingEventHandler(service *PongService) cqrs.IEvenHandler[*PingEvent] {
 func Test_ProvideCommandHandler_WhenHasInjectedService_ShouldInvokeAllDependencies(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingService)
+	container.Provide(NewPingPongService)
 
 	command := &PingCommand{
 		Ping: "ping",
 	}
 
 	// act
-	cqrs_dig.ProvideCommandHandler[*PingCommand, *PingResponse](container, NewCommandHandler)
+	cqrs_dig.ProvideCommandHandler[*PingCommand, *PingResponse](container, NewPingCommandHandler)
 
 	response, _ := cqrs.Send[*PingCommand, *PingResponse](context.TODO(), command)
 
@@ -139,8 +139,8 @@ func Test_ProvideCommandHandler_WhenHasInjectedService_ShouldInvokeAllDependenci
 func Test_ProvideCommandHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependencies(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingService)
-	cqrs_dig.ProvideCommandHandler[*PingCommand, *PingResponse](container, NewCommandHandler)
+	container.Provide(NewPingPongService)
+	cqrs_dig.ProvideCommandHandler[*PingCommand, *PingResponse](container, NewPingCommandHandler)
 
 	command := &PingCommand{
 		Ping: "ping",
@@ -158,14 +158,14 @@ func Test_ProvideCommandHandler_WhenProvideCommandBehavior_ShouldInvokeAllDepend
 func Test_ProvideQueryHandler_WhenHasInjectedService_ShouldInvokeAllDependencies(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingService)
+	container.Provide(NewPingPongService)
 
 	query := &PingQuery{
 		Ping: "ping",
 	}
 
 	// act
-	cqrs_dig.ProvideQueryHandler[*PingQuery, *PingResponse](container, NewQueryHandler)
+	cqrs_dig.ProvideQueryHandler[*PingQuery, *PingResponse](container, NewPingQueryHandler)
 
 	response, _ := cqrs.Request[*PingQuery, *PingResponse](context.TODO(), query)
 
@@ -176,8 +176,8 @@ func Test_ProvideQueryHandler_WhenHasInjectedService_ShouldInvokeAllDependencies
 func Test_ProvideQueryHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependencies(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingService)
-	cqrs_dig.ProvideQueryHandler[*PingQuery, *PingResponse](container, NewQueryHandler)
+	container.Provide(NewPingPongService)
+	cqrs_dig.ProvideQueryHandler[*PingQuery, *PingResponse](container, NewPingQueryHandler)
 
 	query := &PingQuery{
 		Ping: "ping",
@@ -192,19 +192,19 @@ func Test_ProvideQueryHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependen
 	assert.Nil(t, err)
 }
 
-func Test_ProvideEventHandler_WhenHasInjectedDependencies_ShouldInvokeAllDependencies(t *testing.T) {
+func Test_ProvideEventSubscriber_WhenHasInjectedDependencies_ShouldInvokeAllDependencies(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingService)
+	container.Provide(NewPingPongService)
 
 	event := &PingEvent{
 		Ping: "ping",
 	}
 
 	// act
-	cqrs_dig.ProvideEventHandler[*PingEvent](container, NewPingEventHandler)
+	cqrs_dig.ProvideEventSubscriber[*PingEvent](container, NewPingEventHandler)
 
-	err := cqrs.PublishEvent[*PingEvent](context.TODO(), event)
+	err := cqrs.PublishEvent(context.TODO(), event)
 
 	// assert
 	assert.Equal(t, "ping and event says pong!", event.Ping)
