@@ -94,6 +94,15 @@ func NewPingEventHandler(service *PingPongService) cqrs.IEvenHandler[*PingEvent]
   }
 }
 
+func NewPingEventHandler2(service *PingPongService) cqrs.IEvenHandler[*PingEvent] {
+  return &PingEventHandler2{
+    service: service,
+  }
+}
+
 // register the event handler constructor into the DI container
 cqrs_dig.ProvideEventSubscriber[*PingEvent](container, NewPingEventHandler)
+
+// use this method if you have more than one handler per event type
+cqrs_dig.ProvideEventSubscribers[*PingEvent](container, NewPingEventHandler, NewPingEventHandler2)
 ```
