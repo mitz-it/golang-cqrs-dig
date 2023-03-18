@@ -5,6 +5,42 @@ import (
 	"go.uber.org/dig"
 )
 
+type eventHandlerParams[TEvent any] struct {
+	dig.In
+
+	Handlers []cqrs.IEventHandler[TEvent] `group:"handlers"`
+}
+
+func ProvideEventSubscriber[TEvent any](container *dig.Container, constructor interface{}) error {
+	err := container.Provide(constructor)
+
+	if err != nil {
+		return err
+	}
+
+	err = container.Invoke(func(handler cqrs.IEventHandler[TEvent]) error {
+		return cqrs.RegisterEventSubscriber(handler)
+	})
+
+	return err
+}
+
+func ProvideEventSubscribers[TEvent any](container *dig.Container, constructors ...interface{}) error {
+	for _, constructor := range constructors {
+		err := container.Provide(constructor, dig.Group("handlers"))
+
+		if err != nil {
+			return err
+		}
+	}
+
+	err := container.Invoke(func(params eventHandlerParams[TEvent]) error {
+		return cqrs.RegisterEventSubscribers(params.Handlers...)
+	})
+
+	return err
+}
+
 func ProvideCommandHandler[TCommand any, TResponse any](container *dig.Container, constructor interface{}) error {
 	err := container.Provide(constructor)
 
@@ -56,20 +92,6 @@ func ProvideQueryBehavior[TBehavior cqrs.IBehavior](container *dig.Container, or
 
 	err = container.Invoke(func(behavior TBehavior) error {
 		return cqrs.RegisterQueryBehavior(order, behavior)
-	})
-
-	return err
-}
-
-func ProvideEventSubscriber[TEvent any](container *dig.Container, constructor interface{}) error {
-	err := container.Provide(constructor)
-
-	if err != nil {
-		return err
-	}
-
-	err = container.Invoke(func(handler cqrs.IEvenHandler[TEvent]) error {
-		return cqrs.RegisterEventSubcriber(handler)
 	})
 
 	return err
