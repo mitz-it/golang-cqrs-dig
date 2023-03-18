@@ -3,7 +3,7 @@ module github.com/mitz-it/golang-cqrs-dig
 go 1.19
 
 require (
-	github.com/mitz-it/golang-cqrs v1.3.0
+	github.com/mitz-it/golang-cqrs v1.4.0
 	github.com/stretchr/testify v1.7.1
 	go.uber.org/dig v1.16.1
 )
