@@ -15,8 +15,8 @@ import (
 type PingPongService struct {
 }
 
-func (s *PingPongService) Play(ping string, pong string) string {
-	return fmt.Sprintf("%s %s", ping, pong)
+func (s *PingPongService) Play(pong []string, pings ...string) []string {
+	return append(pong, pings...)
 }
 
 func NewPingPongService() *PingPongService {
@@ -24,7 +24,7 @@ func NewPingPongService() *PingPongService {
 }
 
 type PingResponse struct {
-	Pong string
+	Pong []string
 }
 
 type PingCommand struct {
@@ -36,7 +36,7 @@ type PingQuery struct {
 }
 
 type PingEvent struct {
-	Ping string
+	Ping []string
 }
 
 type PingCommandHandler struct {
@@ -44,11 +44,8 @@ type PingCommandHandler struct {
 }
 
 func (h *PingCommandHandler) Handle(ctx context.Context, command *PingCommand) (*PingResponse, error) {
-	pong := h.service.Play(command.Ping, "pong")
-
-	response := &PingResponse{
-		Pong: pong,
-	}
+	response := &PingResponse{}
+	response.Pong = h.service.Play(response.Pong, "ping", "pong")
 
 	return response, nil
 }
@@ -64,11 +61,8 @@ type PingQueryHandler struct {
 }
 
 func (h *PingQueryHandler) Handle(ctx context.Context, query *PingQuery) (*PingResponse, error) {
-	pong := h.service.Play(query.Ping, "pong")
-
-	response := &PingResponse{
-		Pong: pong,
-	}
+	response := &PingResponse{}
+	response.Pong = h.service.Play(response.Pong, "ping", "pong")
 
 	return response, nil
 }
@@ -108,12 +102,29 @@ type PingEventHandler struct {
 }
 
 func (h *PingEventHandler) Handle(ctx context.Context, event *PingEvent) error {
-	event.Ping = h.service.Play(event.Ping, "and event says pong!")
+	event.Ping = h.service.Play(event.Ping, "event says pong!")
+	fmt.Println("event 1 ok")
 	return nil
 }
 
-func NewPingEventHandler(service *PingPongService) cqrs.IEvenHandler[*PingEvent] {
+func NewPingEventHandler(service *PingPongService) cqrs.IEventHandler[*PingEvent] {
 	return &PingEventHandler{
+		service: service,
+	}
+}
+
+type PingEventHandler2 struct {
+	service *PingPongService
+}
+
+func (h *PingEventHandler2) Handle(ctx context.Context, event *PingEvent) error {
+	event.Ping = h.service.Play(event.Ping, "event says pong!")
+	fmt.Println("event 2 ok")
+	return nil
+}
+
+func NewPingEventHandler2(service *PingPongService) cqrs.IEventHandler[*PingEvent] {
+	return &PingEventHandler2{
 		service: service,
 	}
 }
@@ -133,7 +144,7 @@ func Test_ProvideCommandHandler_WhenHasInjectedService_ShouldInvokeAllDependenci
 	response, _ := cqrs.Send[*PingCommand, *PingResponse](context.TODO(), command)
 
 	// assert
-	assert.Equal(t, "ping pong", response.Pong)
+	assert.Equal(t, []string{"ping", "pong"}, response.Pong)
 }
 
 func Test_ProvideCommandHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependencies(t *testing.T) {
@@ -151,7 +162,7 @@ func Test_ProvideCommandHandler_WhenProvideCommandBehavior_ShouldInvokeAllDepend
 	response, _ := cqrs.Send[*PingCommand, *PingResponse](context.TODO(), command)
 
 	// assert
-	assert.Equal(t, "ping pong behavior also says pong", response.Pong)
+	assert.Equal(t, []string{"ping", "pong", "behavior also says pong"}, response.Pong)
 	assert.Nil(t, err)
 }
 
@@ -170,7 +181,7 @@ func Test_ProvideQueryHandler_WhenHasInjectedService_ShouldInvokeAllDependencies
 	response, _ := cqrs.Request[*PingQuery, *PingResponse](context.TODO(), query)
 
 	// assert
-	assert.Equal(t, "ping pong", response.Pong)
+	assert.Equal(t, []string{"ping", "pong"}, response.Pong)
 }
 
 func Test_ProvideQueryHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependencies(t *testing.T) {
@@ -188,7 +199,7 @@ func Test_ProvideQueryHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependen
 	response, _ := cqrs.Request[*PingQuery, *PingResponse](context.TODO(), query)
 
 	// assert
-	assert.Equal(t, "ping pong behavior also says pong", response.Pong)
+	assert.Equal(t, []string{"ping", "pong", "behavior also says pong"}, response.Pong)
 	assert.Nil(t, err)
 }
 
@@ -198,7 +209,7 @@ func Test_ProvideEventSubscriber_WhenHasInjectedDependencies_ShouldInvokeAllDepe
 	container.Provide(NewPingPongService)
 
 	event := &PingEvent{
-		Ping: "ping",
+		Ping: []string{},
 	}
 
 	// act
@@ -207,6 +218,25 @@ func Test_ProvideEventSubscriber_WhenHasInjectedDependencies_ShouldInvokeAllDepe
 	err := cqrs.PublishEvent(context.TODO(), event)
 
 	// assert
-	assert.Equal(t, "ping and event says pong!", event.Ping)
+	assert.Equal(t, []string{"event says pong!"}, event.Ping)
+	assert.Nil(t, err)
+}
+
+func Test_ProvideEventSubscribers_WhenHasInjectedDependencies_ShouldInvokeAllDependencies(t *testing.T) {
+	// arrange
+	container := dig.New()
+	container.Provide(NewPingPongService)
+
+	event := &PingEvent{
+		Ping: []string{},
+	}
+
+	// act
+	cqrs_dig.ProvideEventSubscribers[*PingEvent](container, NewPingEventHandler, NewPingEventHandler2)
+
+	err := cqrs.PublishEvent(context.TODO(), event)
+
+	// assert
+	assert.Equal(t, []string{"event says pong!", "event says pong!", "event says pong!"}, event.Ping)
 	assert.Nil(t, err)
 }
