@@ -1,242 +1,282 @@
-package cqrs_dig_test
+package cqrs_dig
 
 import (
 	"context"
-	"fmt"
 	"testing"
-
-	cqrs_dig "github.com/mitz-it/golang-cqrs-dig"
 
 	cqrs "github.com/mitz-it/golang-cqrs"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/dig"
 )
 
-type PingPongService struct {
+type Response struct{}
+type Event struct{}
+type Command struct{}
+type Query struct{}
+type Service struct{}
+
+type EventHandler1 struct {
+	Service *Service
 }
 
-func (s *PingPongService) Play(pong []string, pings ...string) []string {
-	return append(pong, pings...)
-}
-
-func NewPingPongService() *PingPongService {
-	return &PingPongService{}
-}
-
-type PingResponse struct {
-	Pong []string
-}
-
-type PingCommand struct {
-	Ping string
-}
-
-type PingQuery struct {
-	Ping string
-}
-
-type PingEvent struct {
-	Ping []string
-}
-
-type PingCommandHandler struct {
-	service *PingPongService
-}
-
-func (h *PingCommandHandler) Handle(ctx context.Context, command *PingCommand) (*PingResponse, error) {
-	response := &PingResponse{}
-	response.Pong = h.service.Play(response.Pong, "ping", "pong")
-
-	return response, nil
-}
-
-func NewPingCommandHandler(service *PingPongService) cqrs.ICommandHandler[*PingCommand, *PingResponse] {
-	return &PingCommandHandler{
-		service: service,
-	}
-}
-
-type PingQueryHandler struct {
-	service *PingPongService
-}
-
-func (h *PingQueryHandler) Handle(ctx context.Context, query *PingQuery) (*PingResponse, error) {
-	response := &PingResponse{}
-	response.Pong = h.service.Play(response.Pong, "ping", "pong")
-
-	return response, nil
-}
-
-func NewPingQueryHandler(service *PingPongService) cqrs.IQueryHandler[*PingQuery, *PingResponse] {
-	return &PingQueryHandler{
-		service: service,
-	}
-}
-
-type PingBehavior struct {
-	service *PingPongService
-}
-
-func (b *PingBehavior) Handle(ctx context.Context, request interface{}, next cqrs.NextFunc) (interface{}, error) {
-	res, err := next()
-
-	if err != nil {
-		return nil, err
-	}
-
-	response := res.(*PingResponse)
-
-	response.Pong = b.service.Play(response.Pong, "behavior also says pong")
-
-	return response, nil
-}
-
-func NewPingBehavior(service *PingPongService) *PingBehavior {
-	return &PingBehavior{
-		service: service,
-	}
-}
-
-type PingEventHandler struct {
-	service *PingPongService
-}
-
-func (h *PingEventHandler) Handle(ctx context.Context, event *PingEvent) error {
-	event.Ping = h.service.Play(event.Ping, "event says pong!")
-	fmt.Println("event 1 ok")
+func (h *EventHandler1) Handle(ctx context.Context, event *Event) error {
 	return nil
 }
 
-func NewPingEventHandler(service *PingPongService) cqrs.IEventHandler[*PingEvent] {
-	return &PingEventHandler{
-		service: service,
+func NewEventHandler1(service *Service) cqrs.IEventHandler[*Event] {
+	return &EventHandler1{
+		Service: service,
 	}
 }
 
-type PingEventHandler2 struct {
-	service *PingPongService
+type EventHandler2 struct {
+	Service *Service
 }
 
-func (h *PingEventHandler2) Handle(ctx context.Context, event *PingEvent) error {
-	event.Ping = h.service.Play(event.Ping, "event says pong!")
-	fmt.Println("event 2 ok")
+func (h *EventHandler2) Handle(ctx context.Context, event *Event) error {
 	return nil
 }
 
-func NewPingEventHandler2(service *PingPongService) cqrs.IEventHandler[*PingEvent] {
-	return &PingEventHandler2{
-		service: service,
+func NewEventHandler2(service *Service) cqrs.IEventHandler[*Event] {
+	return &EventHandler2{
+		Service: service,
 	}
 }
 
-func Test_ProvideCommandHandler_WhenHasInjectedService_ShouldInvokeAllDependencies(t *testing.T) {
-	// arrange
-	container := dig.New()
-	container.Provide(NewPingPongService)
-
-	command := &PingCommand{
-		Ping: "ping",
-	}
-
-	// act
-	cqrs_dig.ProvideCommandHandler[*PingCommand, *PingResponse](container, NewPingCommandHandler)
-
-	response, _ := cqrs.Send[*PingCommand, *PingResponse](context.TODO(), command)
-
-	// assert
-	assert.Equal(t, []string{"ping", "pong"}, response.Pong)
+type CommandHandler struct {
+	Service *Service
 }
 
-func Test_ProvideCommandHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependencies(t *testing.T) {
+func (h *CommandHandler) Handle(ctx context.Context, command *Command) (r *Response, err error) {
+	return
+}
+
+func NewCommandHandler(service *Service) cqrs.ICommandHandler[*Command, *Response] {
+	return &CommandHandler{
+		Service: service,
+	}
+}
+
+type QueryHandler struct {
+	Service *Service
+}
+
+func (h *QueryHandler) Handle(ctx context.Context, command *Query) (r *Response, err error) {
+	return
+}
+
+func NewQueryHandler(service *Service) cqrs.IQueryHandler[*Query, *Response] {
+	return &QueryHandler{
+		Service: service,
+	}
+}
+
+type Behavior struct {
+	Service *Service
+}
+
+func (b *Behavior) Handle(ctx context.Context, request interface{}, next cqrs.NextFunc) (interface{}, error) {
+	return nil, nil
+}
+
+func NewBehavior(service *Service) *Behavior {
+	return &Behavior{
+		Service: service,
+	}
+}
+
+func TestProvideEventSubscriber_WhenHandlerHasDependency_ShouldProvideHandlerWithDependency(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingPongService)
-	cqrs_dig.ProvideCommandHandler[*PingCommand, *PingResponse](container, NewPingCommandHandler)
+	container.Provide(func() *Service {
+		return &Service{}
+	})
 
-	command := &PingCommand{
-		Ping: "ping",
-	}
+	var handler *EventHandler1
 
 	// act
-	err := cqrs_dig.ProvideCommandBehavior[*PingBehavior](container, 0, NewPingBehavior)
-	response, _ := cqrs.Send[*PingCommand, *PingResponse](context.TODO(), command)
+	ProvideEventSubscriber[*Event](container, NewEventHandler1)
+	err := container.Invoke(func(h cqrs.IEventHandler[*Event]) {
+		handler = h.(*EventHandler1)
+	})
 
 	// assert
-	assert.Equal(t, []string{"ping", "pong", "behavior also says pong"}, response.Pong)
 	assert.Nil(t, err)
+	assert.Implements(t, (*cqrs.IEventHandler[*Event])(nil), handler)
+	assert.NotNil(t, handler.Service)
 }
 
-func Test_ProvideQueryHandler_WhenHasInjectedService_ShouldInvokeAllDependencies(t *testing.T) {
+func TestProvideEventSubscriber_WhenHandlerConstructorIsNil_ShouldReturnError(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingPongService)
-
-	query := &PingQuery{
-		Ping: "ping",
-	}
 
 	// act
-	cqrs_dig.ProvideQueryHandler[*PingQuery, *PingResponse](container, NewPingQueryHandler)
-
-	response, _ := cqrs.Request[*PingQuery, *PingResponse](context.TODO(), query)
+	err := ProvideEventSubscriber[*Event](container, nil)
 
 	// assert
-	assert.Equal(t, []string{"ping", "pong"}, response.Pong)
+	assert.Error(t, err)
 }
 
-func Test_ProvideQueryHandler_WhenProvideCommandBehavior_ShouldInvokeAllDependencies(t *testing.T) {
+func TestProvideEventSubscribers_WhenHandlersHaveDependency_ShouldProvideHandlersWithDependencies(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingPongService)
-	cqrs_dig.ProvideQueryHandler[*PingQuery, *PingResponse](container, NewPingQueryHandler)
+	container.Provide(func() *Service {
+		return &Service{}
+	})
 
-	query := &PingQuery{
-		Ping: "ping",
-	}
+	var handlers []cqrs.IEventHandler[*Event]
 
 	// act
-	err := cqrs_dig.ProvideQueryBehavior[*PingBehavior](container, 0, NewPingBehavior)
-	response, _ := cqrs.Request[*PingQuery, *PingResponse](context.TODO(), query)
+	err := ProvideEventSubscribers[*Event](container, NewEventHandler1, NewEventHandler2)
+
+	container.Invoke(func(params struct {
+		dig.In
+
+		Handlers []cqrs.IEventHandler[*Event] `group:"handlers"`
+	}) {
+		handlers = params.Handlers
+	})
 
 	// assert
-	assert.Equal(t, []string{"ping", "pong", "behavior also says pong"}, response.Pong)
 	assert.Nil(t, err)
+	assert.NotEmpty(t, handlers)
+	assert.Contains(t, handlers, &EventHandler1{
+		Service: &Service{},
+	})
+	assert.Contains(t, handlers, &EventHandler2{
+		Service: &Service{},
+	})
 }
 
-func Test_ProvideEventSubscriber_WhenHasInjectedDependencies_ShouldInvokeAllDependencies(t *testing.T) {
+func TestProvideEventSubscribers_WhenAnyConstructorIsNil_ShouldReturnError(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingPongService)
-
-	event := &PingEvent{
-		Ping: []string{},
-	}
 
 	// act
-	cqrs_dig.ProvideEventSubscriber[*PingEvent](container, NewPingEventHandler)
-
-	err := cqrs.PublishEvent(context.TODO(), event)
+	err := ProvideEventSubscribers[*Event](container, NewEventHandler2, nil)
 
 	// assert
-	assert.Equal(t, []string{"event says pong!"}, event.Ping)
-	assert.Nil(t, err)
+	assert.Error(t, err)
 }
 
-func Test_ProvideEventSubscribers_WhenHasInjectedDependencies_ShouldInvokeAllDependencies(t *testing.T) {
+func TestProvideCommandHandler_WhenHandlerHasDependency_ShouldProvideHandlerWithDependency(t *testing.T) {
 	// arrange
 	container := dig.New()
-	container.Provide(NewPingPongService)
-
-	event := &PingEvent{
-		Ping: []string{},
-	}
-
+	container.Provide(func() *Service {
+		return &Service{}
+	})
+	var handler *CommandHandler
 	// act
-	cqrs_dig.ProvideEventSubscribers[*PingEvent](container, NewPingEventHandler, NewPingEventHandler2)
+	err := ProvideCommandHandler[*Command, *Response](container, NewCommandHandler)
 
-	err := cqrs.PublishEvent(context.TODO(), event)
+	container.Invoke(func(h cqrs.ICommandHandler[*Command, *Response]) {
+		handler = h.(*CommandHandler)
+	})
 
 	// assert
-	assert.Equal(t, []string{"event says pong!", "event says pong!", "event says pong!"}, event.Ping)
 	assert.Nil(t, err)
+	assert.NotNil(t, handler)
+	assert.NotNil(t, handler.Service)
+}
+
+func TestProvideCommandHandler_WhenConstructorIsNil_ShouldReturnError(t *testing.T) {
+	// arrange
+	container := dig.New()
+	// act
+	err := ProvideCommandHandler[*Command, *Response](container, nil)
+
+	// assert
+	assert.Error(t, err)
+}
+
+func TestProvideQueryHandler_WhenHandlerHasDependency_ShouldProvideHandlerWithDependency(t *testing.T) {
+	// arrange
+	container := dig.New()
+	container.Provide(func() *Service {
+		return &Service{}
+	})
+	var handler *QueryHandler
+	// act
+	err := ProvideQueryHandler[*Query, *Response](container, NewQueryHandler)
+
+	container.Invoke(func(h cqrs.IQueryHandler[*Query, *Response]) {
+		handler = h.(*QueryHandler)
+	})
+
+	// assert
+	assert.Nil(t, err)
+	assert.NotNil(t, handler)
+	assert.NotNil(t, handler.Service)
+}
+
+func TestProvideQueryHandler_WhenConstructorIsNil_ShouldReturnError(t *testing.T) {
+	// arrange
+	container := dig.New()
+	// act
+	err := ProvideQueryHandler[*Query, *Response](container, nil)
+
+	// assert
+	assert.Error(t, err)
+}
+
+func TestProvideCommandBehavior_WhenBehaviorHasDependency_ShouldProvideBehaviorWithDependency(t *testing.T) {
+	// arrange
+	container := dig.New()
+	container.Provide(func() *Service {
+		return &Service{}
+	})
+	var behavior *Behavior
+
+	// act
+	err := ProvideCommandBehavior[*Behavior](container, 0, NewBehavior)
+
+	container.Invoke(func(b *Behavior) {
+		behavior = b
+	})
+
+	// assert
+	assert.Nil(t, err)
+	assert.NotNil(t, behavior)
+	assert.NotNil(t, behavior.Service)
+}
+
+func TestProvideCommandBehavior_WhenConstructorIsNil_ShouldReturnError(t *testing.T) {
+	// arrange
+	container := dig.New()
+	// act
+	err := ProvideCommandBehavior[*Behavior](container, 0, nil)
+
+	// assert
+	assert.Error(t, err)
+}
+
+func TestProvideQueryBehavior_WhenBehaviorHasDependency_ShouldProvideBehaviorWithDependency(t *testing.T) {
+	// arrange
+	container := dig.New()
+	container.Provide(func() *Service {
+		return &Service{}
+	})
+	var behavior *Behavior
+
+	// act
+	err := ProvideQueryBehavior[*Behavior](container, 0, NewBehavior)
+
+	container.Invoke(func(b *Behavior) {
+		behavior = b
+	})
+
+	// assert
+	assert.Nil(t, err)
+	assert.NotNil(t, behavior)
+	assert.NotNil(t, behavior.Service)
+}
+
+func TestProvideQueryBehavior_WhenConstructorIsNil_ShouldReturnError(t *testing.T) {
+	// arrange
+	container := dig.New()
+	// act
+	err := ProvideQueryBehavior[*Behavior](container, 0, nil)
+
+	// assert
+	assert.Error(t, err)
 }
