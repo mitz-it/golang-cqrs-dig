@@ -1,4 +1,4 @@
-name: Code Coverage
+name: SonarCloud Analysis
 
 on:
   pull_request:
@@ -8,30 +8,27 @@ on:
       - main
 
 jobs:
-  build:
+  cover:
+    name: SonarCloud Analysis
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Setup Go
+      - name: Install Go
         uses: actions/setup-go@v3
         with:
           go-version: '>=1.19'
 
-      - name: Download Modules
+      - name: Install Dependencies
         shell: bash
         run: go mod tidy
 
-      - name: Create Bin
-        shell: bash
-        run: mkdir -p bin
-
       - name: Collect Code Coverage
         shell: bash
-        run: go test -race -covermode=atomic -coverprofile=bin/cov.out $(go list ./... | grep -v vendor/)
+        run: make test
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
